@@ -1,11 +1,12 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Mail } from "lucide-react";
+import { ArrowRight, Mail, Plus, Trash2 } from "lucide-react";
 import { isValidVenmoUsername, isValidZelleHandle } from "@/lib/payments";
-import { saveProfile, signOut } from "@/app/actions";
+import { deleteFriend, saveFriend, saveProfile, signOut } from "@/app/actions";
 import { Avatar, BottomBar, Header, Screen } from "./ui";
 import { Button } from "./Button";
+import { Sheet } from "./Sheet";
 
 interface Friend {
   id: string;
@@ -32,6 +33,7 @@ export function ProfileClient({
   const [venmo, setVenmo] = useState(venmoInit);
   const [zelle, setZelle] = useState(zelleInit);
   const [saved, setSaved] = useState(false);
+  const [addingFriend, setAddingFriend] = useState(false);
 
   const venmoBad = venmo.trim().length > 0 && !isValidVenmoUsername(venmo);
   const zelleBad = zelle.trim().length > 0 && !isValidZelleHandle(zelle);
@@ -120,28 +122,46 @@ export function ProfileClient({
           </span>
         </div>
 
-        {friends.length > 0 && (
-          <>
-            <div className="mt-7 mb-2 flex items-center justify-between">
-              <span className="text-[12px] font-medium tracking-wide text-ink-3">SAVED FRIENDS</span>
-              <span className="text-[12px] text-ink-3">{friends.length}</span>
-            </div>
-            <div className="overflow-hidden rounded-2xl border border-line bg-card">
-              {friends.map((f, i) => (
-                <div
-                  key={f.id}
-                  className="flex items-center gap-3 px-3.5 py-3"
-                  style={i ? { borderTop: "1px solid var(--color-line)" } : undefined}
-                >
-                  <Avatar name={f.name} colorIndex={i + 1} size={34} />
-                  <span className="flex-1 text-[15px]">{f.name}</span>
-                  <span className="text-[12px] text-ink-2">
-                    {f.venmoUsername ? `Venmo @${f.venmoUsername.replace(/^@/, "")}` : f.zelleHandle}
-                  </span>
+        <div className="mt-7 mb-2 flex items-center justify-between">
+          <span className="text-[12px] font-medium tracking-wide text-ink-3">SAVED FRIENDS</span>
+          <button onClick={() => setAddingFriend(true)} className="flex items-center gap-1 text-[13px] font-medium text-brand">
+            <Plus size={14} /> Add
+          </button>
+        </div>
+        {friends.length === 0 ? (
+          <p className="rounded-2xl border border-line bg-card px-4 py-4 text-[13px] text-ink-2">
+            Save the people you split with and they&apos;ll be one tap away next time.
+          </p>
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-line bg-card">
+            {friends.map((f, i) => (
+              <div
+                key={f.id}
+                className="flex items-center gap-3 px-3.5 py-3"
+                style={i ? { borderTop: "1px solid var(--color-line)" } : undefined}
+              >
+                <Avatar name={f.name} colorIndex={i + 1} size={34} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[15px]">{f.name}</div>
+                  {(f.venmoUsername || f.zelleHandle) && (
+                    <div className="truncate text-[12px] text-ink-2">
+                      {f.venmoUsername ? `Venmo @${f.venmoUsername.replace(/^@/, "")}` : f.zelleHandle}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          </>
+                <button
+                  aria-label={`Remove ${f.name}`}
+                  onClick={async () => {
+                    await deleteFriend(f.id);
+                    router.refresh();
+                  }}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-ink-3 active:bg-line"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
         )}
 
         <button
@@ -160,6 +180,72 @@ export function ProfileClient({
           {saved ? "Saved" : "Save changes"}
         </Button>
       </BottomBar>
+
+      <AddFriendSheet
+        open={addingFriend}
+        onClose={() => setAddingFriend(false)}
+        onSave={async (f) => {
+          setAddingFriend(false);
+          await saveFriend(f);
+          router.refresh();
+        }}
+      />
     </Screen>
+  );
+}
+
+function AddFriendSheet({
+  open,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSave: (f: { name: string; venmoUsername: string | null; zelleHandle: string | null }) => void;
+}) {
+  const [name, setName] = useState("");
+  const [venmo, setVenmo] = useState("");
+  const [zelle, setZelle] = useState("");
+
+  const venmoBad = venmo.trim().length > 0 && !isValidVenmoUsername(venmo);
+  const zelleBad = zelle.trim().length > 0 && !isValidZelleHandle(zelle);
+
+  return (
+    <Sheet open={open} onClose={onClose} title="Add a friend">
+      <div className="space-y-3">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Name"
+          className="w-full rounded-xl border border-line-strong bg-card px-3.5 py-3 text-[15px] outline-none focus:border-brand"
+        />
+        <input
+          value={venmo}
+          onChange={(e) => setVenmo(e.target.value)}
+          placeholder="Venmo username (optional)"
+          className={`w-full rounded-xl border bg-card px-3.5 py-3 text-[15px] outline-none ${venmoBad ? "border-danger" : "border-line-strong focus:border-brand"}`}
+        />
+        <input
+          value={zelle}
+          onChange={(e) => setZelle(e.target.value)}
+          placeholder="Zelle email or phone (optional)"
+          className={`w-full rounded-xl border bg-card px-3.5 py-3 text-[15px] outline-none ${zelleBad ? "border-danger" : "border-line-strong focus:border-brand"}`}
+        />
+      </div>
+      <div className="mt-4">
+        <Button
+          disabled={!name.trim() || venmoBad || zelleBad}
+          onClick={() =>
+            onSave({
+              name: name.trim(),
+              venmoUsername: venmo.trim() || null,
+              zelleHandle: zelle.trim() || null,
+            })
+          }
+        >
+          Save friend
+        </Button>
+      </div>
+    </Sheet>
   );
 }

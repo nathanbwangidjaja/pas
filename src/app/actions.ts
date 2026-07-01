@@ -269,6 +269,37 @@ export async function signOut() {
   revalidatePath("/profile");
 }
 
+// Saved friends belong to a signed-in user (RLS keeps them to their own rows). Guests just
+// get a no-op — there's no account to hang them off.
+export async function saveFriend(input: {
+  name: string;
+  venmoUsername?: string | null;
+  zelleHandle?: string | null;
+}) {
+  const sb = await getServerSupabase();
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+  if (!user) return;
+  await sb.from("saved_friends").insert({
+    owner_user_id: user.id,
+    name: input.name,
+    venmo_username: input.venmoUsername ?? null,
+    zelle_handle: input.zelleHandle ?? null,
+  });
+  revalidatePath("/profile");
+}
+
+export async function deleteFriend(id: string) {
+  const sb = await getServerSupabase();
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+  if (!user) return;
+  await sb.from("saved_friends").delete().eq("id", id).eq("owner_user_id", user.id);
+  revalidatePath("/profile");
+}
+
 // --- friend marks themselves paid (guarded by the pay token, not the owner) ---
 
 export async function markPaidByToken(token: string, paid: boolean) {

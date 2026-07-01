@@ -19,7 +19,22 @@ function buildAssign(full: BillFull): Record<string, string[]> {
   return m;
 }
 
-export function AssignClient({ billId, full }: { billId: string; full: BillFull }) {
+interface SavedFriend {
+  id: string;
+  name: string;
+  venmoUsername: string | null;
+  zelleHandle: string | null;
+}
+
+export function AssignClient({
+  billId,
+  full,
+  savedFriends = [],
+}: {
+  billId: string;
+  full: BillFull;
+  savedFriends?: SavedFriend[];
+}) {
   const router = useRouter();
   const [participants] = useState<Participant[]>(full.participants);
   const [assign, setAssign] = useState<Record<string, string[]>>(() => buildAssign(full));
@@ -218,6 +233,8 @@ export function AssignClient({ billId, full }: { billId: string; full: BillFull 
       <AddDinerSheet
         open={addingDiner}
         onClose={() => setAddingDiner(false)}
+        savedFriends={savedFriends}
+        existingNames={participants.map((p) => p.name.toLowerCase())}
         onAdd={async (name) => {
           setAddingDiner(false);
           await addDiner(billId, name);
@@ -475,19 +492,44 @@ function AddDinerSheet({
   open,
   onClose,
   onAdd,
+  savedFriends,
+  existingNames,
 }: {
   open: boolean;
   onClose: () => void;
   onAdd: (name: string) => void;
+  savedFriends: SavedFriend[];
+  existingNames: string[];
 }) {
   const [name, setName] = useState("");
+  const available = savedFriends.filter((f) => !existingNames.includes(f.name.toLowerCase()));
+
   return (
     <Sheet open={open} onClose={onClose} title="Add a diner">
+      {available.length > 0 && (
+        <div className="mb-4">
+          <div className="mb-2 text-[12px] font-medium tracking-wide text-ink-3">
+            FROM SAVED FRIENDS
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {available.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => onAdd(f.name)}
+                className="flex items-center gap-1.5 rounded-full bg-brand-soft py-1.5 pl-1.5 pr-3 text-[13px] font-medium text-brand"
+              >
+                <Avatar name={f.name} colorIndex={1} size={22} />
+                {f.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <input
         autoFocus
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="Name"
+        placeholder="New name"
         className="w-full rounded-xl border border-line-strong bg-card px-3.5 py-3 text-[15px] outline-none focus:border-brand"
       />
       <div className="mt-3">
