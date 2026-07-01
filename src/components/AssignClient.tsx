@@ -54,14 +54,12 @@ export function AssignClient({ billId, full }: { billId: string; full: BillFull 
   const unassigned = items.filter((it) => (assign[it.id] ?? []).length === 0);
 
   function toggle(itemId: string, pid: string) {
-    setAssign((prev) => {
-      const current = prev[itemId] ?? [];
-      const next = current.includes(pid)
-        ? current.filter((x) => x !== pid)
-        : [...current, pid];
-      setAssignees(billId, itemId, next);
-      return { ...prev, [itemId]: next };
-    });
+    const current = assign[itemId] ?? [];
+    const next = current.includes(pid)
+      ? current.filter((x) => x !== pid)
+      : [...current, pid];
+    setAssign((prev) => ({ ...prev, [itemId]: next }));
+    setAssignees(billId, itemId, next); // fire the save from the handler, not inside setState
   }
 
   function splitEveryone(itemId: string) {
