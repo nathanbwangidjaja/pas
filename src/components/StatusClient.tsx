@@ -5,7 +5,8 @@ import { BellRing, Check, Copy, Send, Share2 } from "lucide-react";
 import type { BillFull, Participant } from "@/lib/types";
 import type { Share } from "@/lib/shares";
 import { formatCents } from "@/lib/money";
-import { setParticipantPaid, setSettled } from "@/app/actions";
+import { payLinkFor } from "@/lib/payments";
+import { setParticipantPaid } from "@/app/actions";
 import { Avatar, BottomBar, Header, Screen, buttonClass } from "./ui";
 import { Sheet } from "./Sheet";
 import { Button } from "./Button";
@@ -37,20 +38,14 @@ export function StatusClient({
   function toggle(p: Participant) {
     const next = !paid[p.id];
     setPaid((prev) => ({ ...prev, [p.id]: next }));
-    setParticipantPaid(billId, p.id, next);
-    const willAllPaid = others.every((o) => (o.id === p.id ? next : paid[o.id]));
-    setSettled(billId, willAllPaid);
-  }
-
-  function payLink(token: string) {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    return `${origin}/pay/${token}`;
+    // The server recomputes whether the whole bill is settled; reload if the write fails.
+    setParticipantPaid(billId, p.id, next).catch(() => router.refresh());
   }
 
   async function nudgeEveryone() {
     const lines = others
       .filter((p) => !paid[p.id])
-      .map((p) => `${p.name}: ${formatCents(shares[p.id]?.totalCents ?? 0)} — ${payLink(p.payToken)}`);
+      .map((p) => `${p.name}: ${formatCents(shares[p.id]?.totalCents ?? 0)} — ${payLinkFor(p.payToken)}`);
     if (lines.length === 0) return;
     const text = `Reminder for ${full.bill.title}:\n\n${lines.join("\n")}`;
     try {
@@ -142,7 +137,7 @@ export function StatusClient({
         person={nudge}
         title={full.bill.title}
         amount={nudge ? formatCents(shares[nudge.id]?.totalCents ?? 0) : ""}
-        link={nudge ? payLink(nudge.payToken) : ""}
+        link={nudge ? payLinkFor(nudge.payToken) : ""}
         onClose={() => setNudge(null)}
       />
     </Screen>

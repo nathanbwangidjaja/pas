@@ -7,22 +7,21 @@ import { getOrCreateOwner } from "@/lib/owner";
 import { createBillFromOcr, createEvenSplitBill } from "@/lib/db";
 import type { SplitMode } from "@/lib/types";
 
-// Keep the stored total in step with everything else. We leave subtotal_cents alone — for a
-// scanned receipt it's the printed subtotal we reconcile against, so the review screen can
-// flag when the items don't add up to it. If there was no printed subtotal (a manual or
-// even-split bill), the items themselves are the subtotal.
+// Recompute the stored total from the items so it always equals the sum of what everyone is
+// asked to pay (items + tax + tip). subtotal_cents is left alone — for a scanned receipt it's
+// the printed subtotal the review screen reconciles against. Even-split / not-yet-itemized
+// bills set their total directly at creation, so with no items there's nothing to recompute.
 async function recomputeTotals(billId: string) {
   const sb = getServiceSupabase();
   const { data: items } = await sb.from("items").select("line_total_cents").eq("bill_id", billId);
-  const itemsSum = (items ?? []).reduce((a, r) => a + (r.line_total_cents ?? 0), 0);
+  if (!items || items.length === 0) return;
+  const itemsSum = items.reduce((a, r) => a + (r.line_total_cents ?? 0), 0);
   const { data: bill } = await sb
     .from("bills")
-    .select("subtotal_cents, tax_cents, tip_cents")
+    .select("tax_cents, tip_cents")
     .eq("id", billId)
     .single();
-  const stated = bill?.subtotal_cents ?? 0;
-  const effectiveSubtotal = stated > 0 ? stated : itemsSum;
-  const total = effectiveSubtotal + (bill?.tax_cents ?? 0) + (bill?.tip_cents ?? 0);
+  const total = itemsSum + (bill?.tax_cents ?? 0) + (bill?.tip_cents ?? 0);
   await sb.from("bills").update({ total_cents: total }).eq("id", billId);
 }
 
@@ -98,7 +97,12 @@ export async function updateItem(
   touch(billId);
 }
 
-export async function addItem(billId: string, name: string, lineTotalCents: number) {
+/** Returns the new item's id so the client can swap out its optimistic placeholder row. */
+export async function addItem(
+  billId: string,
+  name: string,
+  lineTotalCents: number,
+): Promise<string | null> {
   await assertOwner(billId);
   const sb = getServiceSupabase();
   const { data: max } = await sb
@@ -108,16 +112,21 @@ export async function addItem(billId: string, name: string, lineTotalCents: numb
     .order("sort", { ascending: false })
     .limit(1)
     .maybeSingle();
-  await sb.from("items").insert({
-    bill_id: billId,
-    name,
-    qty: 1,
-    unit_price_cents: lineTotalCents,
-    line_total_cents: lineTotalCents,
-    sort: (max?.sort ?? -1) + 1,
-  });
+  const { data: inserted } = await sb
+    .from("items")
+    .insert({
+      bill_id: billId,
+      name,
+      qty: 1,
+      unit_price_cents: lineTotalCents,
+      line_total_cents: lineTotalCents,
+      sort: (max?.sort ?? -1) + 1,
+    })
+    .select("id")
+    .single();
   await recomputeTotals(billId);
   touch(billId);
+  return inserted?.id ?? null;
 }
 
 export async function deleteItem(billId: string, itemId: string) {
@@ -161,11 +170,26 @@ export async function removeDiner(billId: string, participantId: string) {
 export async function setAssignees(billId: string, itemId: string, participantIds: string[]) {
   await assertOwner(billId);
   const sb = getServiceSupabase();
+
+  // item_assignees has no bill_id column, so scope both the item and the participants to this
+  // bill ourselves — otherwise owning any bill would let you rewrite assignments on another.
+  const { data: item } = await sb
+    .from("items")
+    .select("id")
+    .eq("id", itemId)
+    .eq("bill_id", billId)
+    .maybeSingle();
+  if (!item) throw new Error("That item isn't on this bill.");
+
+  const { data: valid } = await sb.from("participants").select("id").eq("bill_id", billId);
+  const validIds = new Set((valid ?? []).map((p) => p.id));
+  const safeIds = participantIds.filter((pid) => validIds.has(pid));
+
   await sb.from("item_assignees").delete().eq("item_id", itemId);
-  if (participantIds.length) {
+  if (safeIds.length) {
     await sb
       .from("item_assignees")
-      .insert(participantIds.map((pid) => ({ item_id: itemId, participant_id: pid, weight: 1 })));
+      .insert(safeIds.map((pid) => ({ item_id: itemId, participant_id: pid, weight: 1 })));
   }
   touch(billId);
 }
@@ -207,27 +231,26 @@ export async function setCollecting(
   touch(billId);
 }
 
-export async function setParticipantRail(
-  billId: string,
-  participantId: string,
-  rail: "venmo" | "zelle" | null,
-) {
-  await assertOwner(billId);
-  const sb = getServiceSupabase();
-  await sb.from("participants").update({ rail }).eq("id", participantId).eq("bill_id", billId);
-  touch(billId);
-}
-
 // --- status board --------------------------------------------------------
 
-export async function setSettled(billId: string, settled: boolean) {
-  await assertOwner(billId);
+// A bill is settled once everyone who owes has paid. Deriving it from the participants (rather
+// than trusting a flag the client sends) keeps Home's "settled" badge correct no matter which
+// path marked someone paid.
+async function refreshSettled(billId: string) {
   const sb = getServiceSupabase();
+  const { data: parts } = await sb
+    .from("participants")
+    .select("paid, is_payer")
+    .eq("bill_id", billId);
+  const owed = (parts ?? []).filter((p) => !p.is_payer);
+  const allPaid = owed.length > 0 && owed.every((p) => p.paid);
   await sb
     .from("bills")
-    .update({ status: settled ? "settled" : "open", settled_at: settled ? new Date().toISOString() : null })
+    .update({
+      status: allPaid ? "settled" : "open",
+      settled_at: allPaid ? new Date().toISOString() : null,
+    })
     .eq("id", billId);
-  touch(billId);
 }
 
 /** Organizer flips someone's paid status (e.g. they handed over cash). */
@@ -239,6 +262,7 @@ export async function setParticipantPaid(billId: string, participantId: string, 
     .update({ paid, paid_at: paid ? new Date().toISOString() : null })
     .eq("id", participantId)
     .eq("bill_id", billId);
+  await refreshSettled(billId);
   touch(billId);
 }
 
@@ -310,6 +334,9 @@ export async function markPaidByToken(token: string, paid: boolean) {
     .eq("pay_token", token)
     .select("bill_id")
     .single();
-  if (data) touch(data.bill_id);
+  if (data) {
+    await refreshSettled(data.bill_id);
+    touch(data.bill_id);
+  }
   revalidatePath(`/pay/${token}`);
 }

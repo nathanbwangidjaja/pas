@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, Plus, Trash2, X } from "lucide-react";
 import type { Item } from "@/lib/types";
@@ -29,6 +29,18 @@ export function ReviewItems({
   const [adding, setAdding] = useState(false);
   const [zoom, setZoom] = useState(false);
 
+  // Close the full-screen photo on Escape and lock page scroll while it's up.
+  useEffect(() => {
+    if (!zoom) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setZoom(false);
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [zoom]);
+
   const flagged = items.filter((i) => i.lowConfidence);
   const rest = items.filter((i) => !i.lowConfidence);
 
@@ -48,7 +60,8 @@ export function ReviewItems({
       ),
     );
     setEditing(null);
-    updateItem(billId, id, patch);
+    // If the write fails, reload from the server so the UI can't drift out of sync.
+    updateItem(billId, id, patch).catch(() => router.refresh());
   }
 
   function removeItem() {
@@ -56,16 +69,18 @@ export function ReviewItems({
     const id = editing.id;
     setItems((prev) => prev.filter((it) => it.id !== id));
     setEditing(null);
-    deleteItem(billId, id);
+    deleteItem(billId, id).catch(() => router.refresh());
   }
 
-  function saveNew(name: string, lineTotalCents: number) {
+  async function saveNew(name: string, lineTotalCents: number) {
     setAdding(false);
-    // optimistic row; the id is replaced on next load, which is fine for this screen
+    // Show the row immediately with a placeholder id, then swap in the real id the server
+    // returns — otherwise editing this row before a reload would target a non-existent id.
+    const tmpId = `tmp-${crypto.randomUUID()}`;
     setItems((prev) => [
       ...prev,
       {
-        id: `tmp-${Date.now()}`,
+        id: tmpId,
         billId,
         name,
         qty: 1,
@@ -76,7 +91,12 @@ export function ReviewItems({
         sort: prev.length,
       },
     ]);
-    addItem(billId, name, lineTotalCents);
+    try {
+      const realId = await addItem(billId, name, lineTotalCents);
+      if (realId) setItems((prev) => prev.map((it) => (it.id === tmpId ? { ...it, id: realId } : it)));
+    } catch {
+      router.refresh();
+    }
   }
 
   return (

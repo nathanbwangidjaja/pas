@@ -152,10 +152,13 @@ export function ProfileClient({
                 <button
                   aria-label={`Remove ${f.name}`}
                   onClick={async () => {
-                    await deleteFriend(f.id);
-                    router.refresh();
+                    try {
+                      await deleteFriend(f.id);
+                    } finally {
+                      router.refresh();
+                    }
                   }}
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-ink-3 active:bg-line"
+                  className="-mr-1 flex h-11 w-11 items-center justify-center rounded-full text-ink-3 active:bg-line"
                 >
                   <Trash2 size={16} />
                 </button>

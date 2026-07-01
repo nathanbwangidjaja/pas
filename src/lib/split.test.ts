@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeSplit, evenSplit, type SplitInput } from "./split";
+import { computeSplit, type SplitInput } from "./split";
 
 function grandTotal(input: SplitInput) {
   return (
@@ -98,12 +98,5 @@ describe("computeSplit", () => {
     });
     expect(r.perPerson["a"].subtotalCents).toBe(1000);
     expect(r.perPerson["b"].subtotalCents).toBe(500);
-  });
-});
-
-describe("evenSplit", () => {
-  it("splits a single total N ways exactly", () => {
-    const parts = evenSplit(10000, 4);
-    expect(parts.reduce((a, b) => a + b, 0)).toBe(10000);
   });
 });

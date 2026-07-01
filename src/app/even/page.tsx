@@ -1,27 +1,43 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
 import { dollarsToCents, formatCents, splitEvenly } from "@/lib/money";
 import { createEvenBill } from "@/app/actions";
 import { BottomBar, Header, Screen, buttonClass } from "@/components/ui";
 
+interface Row {
+  id: number;
+  value: string;
+}
+
 export default function EvenPage() {
   const router = useRouter();
   const [amount, setAmount] = useState("");
-  const [names, setNames] = useState<string[]>(["You", "", ""]);
+  // Rows carry a stable id (not the array index) so editing one input doesn't jump focus to
+  // another when a row above it is removed. Ids are a plain counter — deterministic across
+  // server render and hydration, unlike a random id.
+  const [rows, setRows] = useState<Row[]>([
+    { id: 0, value: "You" },
+    { id: 1, value: "" },
+    { id: 2, value: "" },
+  ]);
+  const nextId = useRef(3);
   const [busy, setBusy] = useState(false);
 
   const totalCents = dollarsToCents(amount);
-  const realNames = names.map((n) => n.trim()).filter(Boolean);
+  const realNames = rows.map((r) => r.value.trim()).filter(Boolean);
   const count = Math.max(1, realNames.length);
   const each = splitEvenly(totalCents, count)[0] ?? 0;
 
-  function setName(i: number, v: string) {
-    setNames((prev) => prev.map((n, idx) => (idx === i ? v : n)));
+  function setValue(id: number, v: string) {
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, value: v } : r)));
   }
-  function removeName(i: number) {
-    setNames((prev) => prev.filter((_, idx) => idx !== i));
+  function removeRow(id: number) {
+    setRows((prev) => prev.filter((r) => r.id !== id));
+  }
+  function addRow() {
+    setRows((prev) => [...prev, { id: nextId.current++, value: "" }]);
   }
 
   async function create() {
@@ -50,7 +66,8 @@ export default function EvenPage() {
               inputMode="decimal"
               placeholder="0.00"
               autoFocus
-              className="w-full bg-transparent pl-1 text-[24px] font-semibold tnum outline-none"
+              style={{ fontSize: "24px" }}
+              className="w-full bg-transparent pl-1 font-semibold tnum outline-none"
             />
           </div>
         </label>
@@ -67,19 +84,19 @@ export default function EvenPage() {
 
         <div className="mt-6 mb-2 text-[13px] font-medium text-ink-2">Who&apos;s splitting?</div>
         <div className="space-y-2">
-          {names.map((n, i) => (
-            <div key={i} className="flex items-center gap-2">
+          {rows.map((r, i) => (
+            <div key={r.id} className="flex items-center gap-2">
               <input
-                value={n}
-                onChange={(e) => setName(i, e.target.value)}
+                value={r.value}
+                onChange={(e) => setValue(r.id, e.target.value)}
                 placeholder={i === 0 ? "You" : `Person ${i + 1}`}
-                className="flex-1 rounded-xl border border-line-strong bg-card px-3.5 py-2.5 text-[15px] outline-none focus:border-brand"
+                className="flex-1 rounded-xl border border-line-strong bg-card px-3.5 py-2.5 outline-none focus:border-brand"
               />
-              {names.length > 1 && (
+              {rows.length > 1 && (
                 <button
-                  onClick={() => removeName(i)}
-                  aria-label="Remove"
-                  className="flex h-9 w-9 items-center justify-center rounded-full text-ink-3 active:bg-line"
+                  onClick={() => removeRow(r.id)}
+                  aria-label="Remove person"
+                  className="flex h-11 w-11 items-center justify-center rounded-full text-ink-3 active:bg-line"
                 >
                   <X size={18} />
                 </button>
@@ -88,8 +105,8 @@ export default function EvenPage() {
           ))}
         </div>
         <button
-          onClick={() => setNames((prev) => [...prev, ""])}
-          className="mt-3 flex items-center gap-1.5 text-[14px] font-medium text-brand"
+          onClick={addRow}
+          className="mt-3 flex min-h-11 items-center gap-1.5 text-[14px] font-medium text-brand"
         >
           <Plus size={16} /> Add a person
         </button>

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { Check, Copy, ExternalLink, Info } from "lucide-react";
 import { formatCents } from "@/lib/money";
@@ -41,6 +42,7 @@ export function PayClient({
   const venmoOk = !!venmo && isValidVenmoUsername(venmo);
   const zelleOk = !!zelle && isValidZelleHandle(zelle);
 
+  const router = useRouter();
   const [paid, setPaid] = useState(alreadyPaid);
   const [rail, setRail] = useState<"venmo" | "zelle">(venmoOk ? "venmo" : "zelle");
   const [showBreakdown, setShowBreakdown] = useState(false);
@@ -51,7 +53,7 @@ export function PayClient({
 
   function mark(next: boolean) {
     setPaid(next);
-    markPaidByToken(token, next);
+    markPaidByToken(token, next).catch(() => router.refresh());
   }
 
   async function copyZelle() {
@@ -127,7 +129,11 @@ export function PayClient({
               {rail === "venmo" && venmoOk ? (
                 <div className="flex flex-col items-center">
                   <div className="rounded-xl bg-white p-3">
-                    <QRCodeSVG value={venmoPayLink({ recipient: venmo!, amountCents, note })} size={172} />
+                    <QRCodeSVG
+                      value={venmoPayLink({ recipient: venmo!, amountCents, note })}
+                      size={172}
+                      title={`Venmo payment code for ${amount}`}
+                    />
                   </div>
                   <p className="mt-3 text-center text-[13px] text-ink-2">
                     Scan with your phone camera, or tap below — the amount is filled in for you.
@@ -136,7 +142,11 @@ export function PayClient({
               ) : (
                 <div className="flex flex-col items-center">
                   <div className="rounded-xl bg-white p-3">
-                    <QRCodeSVG value={zelleQrUrl({ name: payerName, token: zelle! })} size={172} />
+                    <QRCodeSVG
+                      value={zelleQrUrl({ name: payerName, token: zelle! })}
+                      size={172}
+                      title={`Zelle payment code for ${payerName}`}
+                    />
                   </div>
                   <p className="mt-3 text-center text-[13px] text-ink-2">
                     Open your bank app → Zelle → scan this code.

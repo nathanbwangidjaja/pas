@@ -117,7 +117,7 @@ export function Header({
         <Link
           href={backHref}
           aria-label="Back"
-          className="-ml-1.5 flex h-9 w-9 items-center justify-center rounded-full text-ink-2 active:bg-line"
+          className="-ml-2.5 flex h-11 w-11 items-center justify-center rounded-full text-ink-2 active:bg-line"
         >
           <ChevronLeft size={22} />
         </Link>

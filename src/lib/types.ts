@@ -5,20 +5,6 @@ export type SplitMode = "proportional" | "even";
 export type Rail = "venmo" | "zelle";
 export type BillStatus = "open" | "settled";
 
-export interface Profile {
-  id: string;
-  displayName: string | null;
-  venmoUsername: string | null;
-  zelleHandle: string | null;
-}
-
-export interface SavedFriend {
-  id: string;
-  name: string;
-  venmoUsername: string | null;
-  zelleHandle: string | null;
-}
-
 export interface Participant {
   id: string;
   billId: string;

@@ -9,7 +9,7 @@
 
   --color-ink: #1a1a18;
   --color-ink-2: #6b6b66;
-  --color-ink-3: #9c9a92;
+  --color-ink-3: #77746b;
 
   --color-page: #fafaf7;
   --color-card: #ffffff;
@@ -55,6 +55,14 @@ body {
 
 * {
   box-sizing: border-box;
+}
+
+/* Keep form fields at 16px+ so iOS Safari doesn't zoom the page when they're focused. The
+   one deliberately-large input (the even-split amount) sets its own size inline. */
+input,
+textarea,
+select {
+  font-size: 16px;
 }
 
 /* keep content clear of the notch and the home bar */

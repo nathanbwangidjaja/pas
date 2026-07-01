@@ -74,16 +74,20 @@ export function AssignClient({
       ? current.filter((x) => x !== pid)
       : [...current, pid];
     setAssign((prev) => ({ ...prev, [itemId]: next }));
-    setAssignees(billId, itemId, next); // fire the save from the handler, not inside setState
+    // fire the save from the handler, not inside setState; reload if it fails so we stay honest
+    setAssignees(billId, itemId, next).catch(() => router.refresh());
   }
 
   function splitEveryone(itemId: string) {
     const ids = participants.map((p) => p.id);
     setAssign((prev) => ({ ...prev, [itemId]: ids }));
-    setAssignees(billId, itemId, ids);
+    setAssignees(billId, itemId, ids).catch(() => router.refresh());
   }
 
   async function proceed() {
+    // Don't let money get requested while items are unassigned — their cost would be charged
+    // to nobody and the organizer would quietly collect less than the bill.
+    if (mode === "items" && unassigned.length > 0) return;
     if (mode === "even") {
       // even split = everyone on every item, so the downstream split is exactly total / N
       const ids = participants.map((p) => p.id);
@@ -199,7 +203,11 @@ export function AssignClient({
             {unassigned.length} item{unassigned.length > 1 ? "s" : ""} not assigned yet
           </div>
         )}
-        <button className={buttonClass("primary")} onClick={proceed} disabled={participants.length === 0}>
+        <button
+          className={buttonClass("primary")}
+          onClick={proceed}
+          disabled={participants.length === 0 || (mode === "items" && unassigned.length > 0)}
+        >
           Review &amp; request
         </button>
       </BottomBar>
@@ -226,7 +234,7 @@ export function AssignClient({
           setTipCents(next.tipCents);
           setSplit(next.split);
           setShowTax(false);
-          setTaxTip(billId, { ...next, tipMode: next.tipMode });
+          setTaxTip(billId, { ...next, tipMode: next.tipMode }).catch(() => router.refresh());
         }}
       />
 
@@ -237,8 +245,11 @@ export function AssignClient({
         existingNames={participants.map((p) => p.name.toLowerCase())}
         onAdd={async (name) => {
           setAddingDiner(false);
-          await addDiner(billId, name);
-          router.refresh();
+          try {
+            await addDiner(billId, name);
+          } finally {
+            router.refresh();
+          }
         }}
       />
     </Screen>

@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   venmoPayLink,
-  venmoAppLink,
   normalizeVenmoUsername,
   isValidVenmoUsername,
   isValidZelleHandle,
@@ -15,12 +14,6 @@ describe("venmo links", () => {
     expect(url).toContain("txn=pay");
     expect(url).toContain("amount=24.03");
     expect(url).toContain("note=El+Farolito");
-  });
-
-  it("builds the app-scheme link", () => {
-    expect(venmoAppLink({ recipient: "alex", amountCents: 500 })).toBe(
-      "venmo://paycharge?txn=pay&recipients=alex&amount=5.00",
-    );
   });
 
   it("normalizes and validates usernames", () => {

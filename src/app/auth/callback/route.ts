@@ -6,7 +6,9 @@ import { createServerClient } from "@supabase/ssr";
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
-  const next = url.searchParams.get("next") ?? "/profile";
+  // Only allow same-site relative paths so ?next=... can't bounce people to another domain.
+  const requested = url.searchParams.get("next") ?? "/profile";
+  const next = requested.startsWith("/") && !requested.startsWith("//") ? requested : "/profile";
   const res = NextResponse.redirect(new URL(next, url.origin));
 
   if (code) {

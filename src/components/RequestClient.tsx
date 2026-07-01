@@ -5,7 +5,7 @@ import { Check, ChevronDown, Copy, Send, Share2, TriangleAlert } from "lucide-re
 import type { BillFull } from "@/lib/types";
 import type { Share } from "@/lib/shares";
 import { formatCents } from "@/lib/money";
-import { isValidVenmoUsername, isValidZelleHandle } from "@/lib/payments";
+import { isValidVenmoUsername, isValidZelleHandle, payLinkFor } from "@/lib/payments";
 import { setCollecting } from "@/app/actions";
 import { Avatar, BottomBar, Header, Screen, buttonClass } from "./ui";
 import { Button } from "./Button";
@@ -34,28 +34,27 @@ export function RequestClient({
   const hasCollecting = isValidVenmoUsername(venmo) || isValidZelleHandle(zelle);
   const collectingCents = others.reduce((a, p) => a + (shares[p.id]?.totalCents ?? 0), 0);
 
-  function payLink(token: string) {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    return `${origin}/pay/${token}`;
-  }
-
   async function copy(token: string) {
-    await navigator.clipboard.writeText(payLink(token));
+    await navigator.clipboard.writeText(payLinkFor(token));
     setCopied(token);
     setTimeout(() => setCopied(null), 1500);
   }
 
   async function saveHandles() {
     setEditingHandles(false);
-    await setCollecting(billId, {
-      venmoUsername: isValidVenmoUsername(venmo) ? venmo.trim() : null,
-      zelleHandle: isValidZelleHandle(zelle) ? zelle.trim() : null,
-    });
+    try {
+      await setCollecting(billId, {
+        venmoUsername: isValidVenmoUsername(venmo) ? venmo.trim() : null,
+        zelleHandle: isValidZelleHandle(zelle) ? zelle.trim() : null,
+      });
+    } catch {
+      router.refresh();
+    }
   }
 
   async function shareAll() {
     const lines = others.map(
-      (p) => `${p.name}: ${formatCents(shares[p.id]?.totalCents ?? 0)} — ${payLink(p.payToken)}`,
+      (p) => `${p.name}: ${formatCents(shares[p.id]?.totalCents ?? 0)} — ${payLinkFor(p.payToken)}`,
     );
     const text = `${full.bill.title} — here's what you owe:\n\n${lines.join("\n")}`;
     try {

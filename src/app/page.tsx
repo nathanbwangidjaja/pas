@@ -17,7 +17,11 @@ export default async function Home() {
     <Screen>
       <header className="safe-top flex items-center justify-between px-5 pt-4 pb-2">
         <Wordmark size={22} />
-        <Link href="/profile" aria-label="Profile">
+        <Link
+          href="/profile"
+          aria-label="Profile"
+          className="-mr-2 flex h-11 w-11 items-center justify-center"
+        >
           <Avatar name="You" colorIndex={0} size={30} />
         </Link>
       </header>

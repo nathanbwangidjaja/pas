@@ -92,8 +92,3 @@ export function computeSplit(input: SplitInput): SplitResult {
 
   return { perPerson, assignedSubtotalCents, unassignedItemIds };
 }
-
-/** The "even split" home-screen path: one number, split N ways, tax and tip included. */
-export function evenSplit(totalCents: number, people: number): number[] {
-  return splitEvenly(totalCents, people);
-}

@@ -9,6 +9,12 @@ function toBase64(s: string): string {
   return btoa(unescape(encodeURIComponent(s)));
 }
 
+/** The absolute URL a friend opens to pay. Only meaningful in the browser (needs the origin). */
+export function payLinkFor(token: string): string {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return `${origin}/pay/${token}`;
+}
+
 export function normalizeVenmoUsername(raw: string): string {
   return raw.trim().replace(/^@+/, "");
 }
@@ -40,22 +46,6 @@ export function venmoPayLink(opts: {
   const params = new URLSearchParams({ txn: "pay", amount: amountString(opts.amountCents) });
   if (opts.note) params.set("note", opts.note);
   return `https://venmo.com/${encodeURIComponent(user)}?${params.toString()}`;
-}
-
-/** The app-scheme version, which is what actually opens Venmo on a phone. */
-export function venmoAppLink(opts: {
-  recipient: string;
-  amountCents: number;
-  note?: string;
-}): string {
-  const user = normalizeVenmoUsername(opts.recipient);
-  const params = new URLSearchParams({
-    txn: "pay",
-    recipients: user,
-    amount: amountString(opts.amountCents),
-  });
-  if (opts.note) params.set("note", opts.note);
-  return `venmo://paycharge?${params.toString()}`;
 }
 
 // Zelle has no API and no pay link. But a Zelle QR is just this enrollment URL with the

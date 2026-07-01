@@ -17,7 +17,7 @@ export function Segmented<T extends string>({
           key={o.value}
           onClick={() => onChange(o.value)}
           className={clsx(
-            "flex-1 rounded-xl py-2 text-[14px] font-medium transition",
+            "min-h-11 flex-1 rounded-xl py-2.5 text-[14px] font-medium transition",
             value === o.value ? "bg-card text-ink shadow-sm" : "text-ink-2",
           )}
         >
