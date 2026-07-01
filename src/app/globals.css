@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+/* Design tokens for pas. The app is light-mode only on purpose — it's a phone app with
+   one specific look, so there's no dark theme to keep in sync. */
+@theme {
+  --color-brand: #0f9e72;
+  --color-brand-strong: #0c8862;
+  --color-brand-soft: #e7f5ef;
+
+  --color-ink: #1a1a18;
+  --color-ink-2: #6b6b66;
+  --color-ink-3: #9c9a92;
+
+  --color-page: #fafaf7;
+  --color-card: #ffffff;
+  --color-line: #eceae4;
+  --color-line-strong: #ddd9cf;
+
+  --color-warn: #9a6b12;
+  --color-warn-bg: #fbf1dc;
+  --color-warn-line: #ecdcb2;
+
+  --color-danger: #c0322b;
+  --color-danger-bg: #fcedec;
+  --color-danger-line: #f3cdca;
+
+  /* per-person colors — solid avatar fills */
+  --color-p1: #7b6ceb;
+  --color-p2: #e2603a;
+  --color-p3: #3b82c4;
+  --color-p4: #d6568a;
+  --color-p5: #cf8a1e;
+  --color-p6: #14a07a;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-page);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* keep content clear of the notch and the home bar */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* line up money columns */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -340px 0;
+  }
+  100% {
+    background-position: 340px 0;
+  }
+}
+.skeleton {
+  background: linear-gradient(90deg, #eceae4 25%, #f4f2ed 50%, #eceae4 75%);
+  background-size: 600px 100%;
+  animation: shimmer 1.4s linear infinite;
+  border-radius: 8px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin {
+  animation: spin 0.9s linear infinite;
+}
