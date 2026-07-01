@@ -289,6 +289,41 @@ export async function getSavedFriends(userId: string) {
   }));
 }
 
+/**
+ * Delete stored receipt photos for privacy, then forget their paths. Purges bills that have
+ * been settled longer than `settledHours` (a grace window in case someone un-marks a payment)
+ * and, as a backstop, any bill older than `maxAgeDays` whether or not it ever settled.
+ * Returns how many photos were removed.
+ */
+export async function purgeReceipts(opts?: {
+  settledHours?: number;
+  maxAgeDays?: number;
+}): Promise<number> {
+  const sb = getServiceSupabase();
+  const settledCutoff = new Date(Date.now() - (opts?.settledHours ?? 48) * 3600_000).toISOString();
+  const ageCutoff = new Date(Date.now() - (opts?.maxAgeDays ?? 30) * 86_400_000).toISOString();
+
+  const { data } = await sb
+    .from("bills")
+    .select("id, receipt_path")
+    .not("receipt_path", "is", null)
+    .or(`settled_at.lt.${settledCutoff},created_at.lt.${ageCutoff}`);
+
+  const rows = data ?? [];
+  if (rows.length === 0) return 0;
+
+  const paths = rows.map((r: any) => r.receipt_path).filter(Boolean);
+  const { error } = await sb.storage.from("receipts").remove(paths);
+  // Only forget the paths if the objects actually went away, so a failure just retries next run.
+  if (!error) {
+    await sb.from("bills").update({ receipt_path: null }).in(
+      "id",
+      rows.map((r: any) => r.id),
+    );
+  }
+  return error ? 0 : paths.length;
+}
+
 /** Short-lived link to a stored receipt photo, for the review/zoom screen. */
 export async function signedReceiptUrl(
   path: string | null,
