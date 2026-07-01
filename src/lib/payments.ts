@@ -35,8 +35,9 @@ export function isValidZelleHandle(raw: string): boolean {
 // The friend is paying the collector, so this is a "pay" link aimed at the collector's
 // handle. Heads up: Venmo only finishes the transaction inside the mobile app — on
 // desktop this just opens the site, which is why the pay screen also shows a QR + the
-// amount in plain text. These links are undocumented and have broken before, so they're
-// best-effort, never the only way to pay.
+// amount in plain text. The /u/ path is the one Venmo's app still registers on iOS and
+// Android (checked July 2026); the bare /username form stopped opening the app. These links
+// are undocumented and have broken before, so they're best-effort, never the only way to pay.
 export function venmoPayLink(opts: {
   recipient: string;
   amountCents: number;
@@ -45,7 +46,21 @@ export function venmoPayLink(opts: {
   const user = normalizeVenmoUsername(opts.recipient);
   const params = new URLSearchParams({ txn: "pay", amount: amountString(opts.amountCents) });
   if (opts.note) params.set("note", opts.note);
-  return `https://venmo.com/${encodeURIComponent(user)}?${params.toString()}`;
+  return `https://venmo.com/u/${encodeURIComponent(user)}?${params.toString()}`;
+}
+
+// The reverse direction: the ORGANIZER, on their own phone, requesting money FROM a friend.
+// Venmo opens with the friend + amount + note prefilled; the organizer taps Send and the
+// friend gets a native Venmo request in their own app — no pas involved on their side.
+export function venmoRequestLink(opts: {
+  from: string; // the friend's Venmo username (who's being charged)
+  amountCents: number;
+  note?: string;
+}): string {
+  const user = normalizeVenmoUsername(opts.from);
+  const params = new URLSearchParams({ txn: "charge", amount: amountString(opts.amountCents) });
+  if (opts.note) params.set("note", opts.note);
+  return `https://venmo.com/u/${encodeURIComponent(user)}?${params.toString()}`;
 }
 
 // Zelle has no API and no pay link. But a Zelle QR is just this enrollment URL with the

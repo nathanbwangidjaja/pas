@@ -1,29 +1,55 @@
 import Link from "next/link";
-import { Check, Receipt, Split } from "lucide-react";
-import { getCurrentOwner } from "@/lib/owner";
-import { listRecentBills } from "@/lib/db";
+import { cookies } from "next/headers";
+import { Check, Receipt, Split, User } from "lucide-react";
+import { getServerSupabase } from "@/lib/supabase/server";
+import { getProfile, listRecentBills } from "@/lib/db";
 import { formatCents } from "@/lib/money";
 import { Wordmark } from "@/components/Logo";
 import { Avatar, BottomBar, Card, LinkButton, Screen } from "@/components/ui";
 import { Capture } from "@/components/Capture";
+import { Welcome } from "@/components/Welcome";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const owner = await getCurrentOwner();
-  const bills = await listRecentBills(owner);
+  const sb = await getServerSupabase();
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+  const store = await cookies();
+  const isGuest = !!store.get("pas_guest");
+
+  // Sign-in first: a logged-out visitor who hasn't chosen "guest" sees the welcome screen.
+  if (!user && !isGuest) return <Welcome />;
+
+  const device = store.get("pas_device")?.value ?? null;
+  const bills = await listRecentBills({ userId: user?.id ?? null, device });
+  const profile = user ? await getProfile(user.id) : null;
+  const displayName = profile?.displayName || user?.email || "You";
 
   return (
     <Screen>
       <header className="safe-top flex items-center justify-between px-5 pt-4 pb-2">
         <Wordmark size={22} />
-        <Link
-          href="/profile"
-          aria-label="Profile"
-          className="-mr-2 flex h-11 w-11 items-center justify-center"
-        >
-          <Avatar name="You" colorIndex={0} size={30} />
-        </Link>
+        {user ? (
+          <Link
+            href="/profile"
+            aria-label="Profile"
+            className="-mr-2 flex h-11 w-11 items-center justify-center"
+          >
+            <Avatar name={displayName} colorIndex={0} size={30} />
+          </Link>
+        ) : (
+          <Link
+            href="/signin"
+            aria-label="Sign in"
+            className="-mr-2 flex h-11 w-11 items-center justify-center"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-line text-ink-2">
+              <User size={17} />
+            </span>
+          </Link>
+        )}
       </header>
 
       <main className="flex flex-1 flex-col px-5">

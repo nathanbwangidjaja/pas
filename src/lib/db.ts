@@ -28,6 +28,7 @@ function mapBill(r: any): Bill {
     tipMode: r.tip_mode,
     taxTipSplit: r.tax_tip_split,
     receiptPath: r.receipt_path,
+    shareToken: r.share_token,
     createdAt: r.created_at,
     settledAt: r.settled_at,
   };
@@ -46,6 +47,8 @@ function mapParticipant(r: any): Participant {
     rail: r.rail,
     paid: r.paid,
     paidAt: r.paid_at,
+    paidSource: r.paid_source,
+    claimedAt: r.claimed_at,
     payToken: r.pay_token,
   };
 }
@@ -195,6 +198,14 @@ export function ownerMatches(
   if (access.ownerUserId && who.userId && access.ownerUserId === who.userId) return true;
   if (access.ownerDevice && who.device && access.ownerDevice === who.device) return true;
   return false;
+}
+
+/** Load a bill from its group share link token — the "tap your name" roster page. */
+export async function getBillForShareToken(token: string): Promise<BillFull | null> {
+  const sb = getServiceSupabase();
+  const { data } = await sb.from("bills").select("id").eq("share_token", token).single();
+  if (!data) return null;
+  return getBillFull(data.id);
 }
 
 /** Load a bill from a friend's pay token: their participant row plus the whole bill. */

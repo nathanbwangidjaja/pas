@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   venmoPayLink,
+  venmoRequestLink,
   normalizeVenmoUsername,
   isValidVenmoUsername,
   isValidZelleHandle,
@@ -8,12 +9,19 @@ import {
 } from "./payments";
 
 describe("venmo links", () => {
-  it("builds a prefilled pay link", () => {
+  it("builds a prefilled pay link on the /u/ path", () => {
     const url = venmoPayLink({ recipient: "@alex-rivera", amountCents: 2403, note: "El Farolito" });
-    expect(url).toContain("https://venmo.com/alex-rivera");
+    expect(url).toContain("https://venmo.com/u/alex-rivera");
     expect(url).toContain("txn=pay");
     expect(url).toContain("amount=24.03");
     expect(url).toContain("note=El+Farolito");
+  });
+
+  it("builds a request (charge) link aimed at the friend", () => {
+    const url = venmoRequestLink({ from: "maya-k", amountCents: 5610, note: "El Farolito" });
+    expect(url).toContain("https://venmo.com/u/maya-k");
+    expect(url).toContain("txn=charge");
+    expect(url).toContain("amount=56.10");
   });
 
   it("normalizes and validates usernames", () => {

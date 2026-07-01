@@ -95,11 +95,16 @@ export function StatusClient({
                     <Avatar name={p.name} colorIndex={p.colorIndex} size={38} />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[15px] font-medium">{p.name}</div>
-                      {!isPaid && (
-                        <button onClick={() => setNudge(p)} className="text-[12px] text-brand">
-                          Nudge
-                        </button>
-                      )}
+                      {isPaid && p.paidSource === "self" ? (
+                        <div className="text-[12px] text-ink-3">They marked it paid</div>
+                      ) : !isPaid ? (
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setNudge(p)} className="text-[12px] text-brand">
+                            Nudge
+                          </button>
+                          {p.claimedAt && <span className="text-[12px] text-ink-3">· opened their link</span>}
+                        </div>
+                      ) : null}
                     </div>
                     <div className="text-right">
                       <div className="text-[15px] font-semibold tnum">

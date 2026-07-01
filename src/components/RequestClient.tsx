@@ -1,14 +1,21 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Copy, Send, Share2, TriangleAlert } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import { Check, ChevronDown, Copy, QrCode, Send, Share2, TriangleAlert } from "lucide-react";
 import type { BillFull } from "@/lib/types";
 import type { Share } from "@/lib/shares";
 import { formatCents } from "@/lib/money";
-import { isValidVenmoUsername, isValidZelleHandle, payLinkFor } from "@/lib/payments";
+import {
+  isValidVenmoUsername,
+  isValidZelleHandle,
+  payLinkFor,
+  venmoRequestLink,
+} from "@/lib/payments";
 import { setCollecting } from "@/app/actions";
 import { Avatar, BottomBar, Header, Screen, buttonClass } from "./ui";
 import { Button } from "./Button";
+import { Sheet } from "./Sheet";
 
 export function RequestClient({
   billId,
@@ -30,9 +37,16 @@ export function RequestClient({
   const [editingHandles, setEditingHandles] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [showQr, setShowQr] = useState(false);
 
   const hasCollecting = isValidVenmoUsername(venmo) || isValidZelleHandle(zelle);
   const collectingCents = others.reduce((a, p) => a + (shares[p.id]?.totalCents ?? 0), 0);
+
+  // The one link for the whole table — friends tap their own name there.
+  const shareLink = () => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    return `${origin}/s/${full.bill.shareToken}`;
+  };
 
   async function copy(token: string) {
     await navigator.clipboard.writeText(payLinkFor(token));
@@ -52,16 +66,14 @@ export function RequestClient({
     }
   }
 
-  async function shareAll() {
-    const lines = others.map(
-      (p) => `${p.name}: ${formatCents(shares[p.id]?.totalCents ?? 0)} — ${payLinkFor(p.payToken)}`,
-    );
-    const text = `${full.bill.title} — here's what you owe:\n\n${lines.join("\n")}`;
+  // One message to the group chat: a single link where everyone taps their own name.
+  async function shareBill() {
+    const text = `${full.bill.title} — tap your name to see your share and pay: ${shareLink()}`;
     try {
-      if (navigator.share) await navigator.share({ title: "pas", text });
+      if (navigator.share) await navigator.share({ text });
       else await navigator.clipboard.writeText(text);
     } catch {
-      /* user dismissed the share sheet */
+      return; // user dismissed the share sheet — stay here
     }
     router.push(`/bill/${billId}`);
   }
@@ -177,13 +189,27 @@ export function RequestClient({
                   </div>
                 )}
 
-                <div className="border-t border-line px-3.5 py-2">
+                <div className="flex items-center gap-4 border-t border-line px-3.5 py-2">
+                  {p.venmoUsername && isValidVenmoUsername(p.venmoUsername) && (
+                    <a
+                      href={venmoRequestLink({
+                        from: p.venmoUsername,
+                        amountCents: share?.totalCents ?? 0,
+                        note: full.bill.title,
+                      })}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1.5 text-[13px] font-medium text-brand"
+                    >
+                      <Send size={13} /> Request in Venmo
+                    </a>
+                  )}
                   <button
                     onClick={() => copy(p.payToken)}
                     className="flex items-center gap-1.5 text-[13px] font-medium text-brand"
                   >
                     {copied === p.payToken ? <Check size={14} /> : <Copy size={14} />}
-                    {copied === p.payToken ? "Link copied" : "Copy pay link"}
+                    {copied === p.payToken ? "Link copied" : "Copy their link"}
                   </button>
                 </div>
               </div>
@@ -199,20 +225,38 @@ export function RequestClient({
       </main>
 
       <BottomBar>
-        <button
-          className={buttonClass("primary")}
-          onClick={shareAll}
-          disabled={others.length === 0}
-        >
-          <Share2 size={17} /> Share all requests
-        </button>
-        <button
-          className={buttonClass("ghost")}
-          onClick={() => router.push(`/bill/${billId}`)}
-        >
-          <Send size={15} /> Skip to who&apos;s paid
+        <div className="flex gap-2.5">
+          <button
+            className={buttonClass("secondary")}
+            onClick={() => setShowQr(true)}
+            disabled={others.length === 0}
+            aria-label="Show table QR"
+          >
+            <QrCode size={17} /> Table QR
+          </button>
+          <button
+            className={buttonClass("primary")}
+            onClick={shareBill}
+            disabled={others.length === 0}
+          >
+            <Share2 size={17} /> Share the bill
+          </button>
+        </div>
+        <button className={buttonClass("ghost")} onClick={() => router.push(`/bill/${billId}`)}>
+          Skip to who&apos;s paid
         </button>
       </BottomBar>
+
+      <Sheet open={showQr} onClose={() => setShowQr(false)} title="Scan to see your share">
+        <div className="flex flex-col items-center">
+          <div className="rounded-xl bg-white p-3">
+            <QRCodeSVG value={shareLink()} size={190} title="Link to this bill" />
+          </div>
+          <p className="mt-3 max-w-[16rem] text-center text-[13px] text-ink-2">
+            Friends scan this, tap their name, and pay — nothing to install.
+          </p>
+        </div>
+      </Sheet>
     </Screen>
   );
 }

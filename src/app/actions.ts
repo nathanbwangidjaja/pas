@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { getServiceSupabase, getServerSupabase } from "@/lib/supabase/server";
 import { assertOwner } from "@/lib/guard";
 import { getOrCreateOwner } from "@/lib/owner";
@@ -139,7 +140,11 @@ export async function deleteItem(billId: string, itemId: string) {
 
 // --- diners --------------------------------------------------------------
 
-export async function addDiner(billId: string, name: string) {
+export async function addDiner(
+  billId: string,
+  name: string,
+  handles?: { venmoUsername?: string | null; zelleHandle?: string | null },
+) {
   await assertOwner(billId);
   const sb = getServiceSupabase();
   const { data: rows } = await sb
@@ -151,9 +156,15 @@ export async function addDiner(billId: string, name: string) {
   const used = new Set((rows ?? []).map((r) => r.color_index));
   let color = 0;
   while (used.has(color)) color++;
-  await sb
-    .from("participants")
-    .insert({ bill_id: billId, name, color_index: color, sort: nextSort });
+  await sb.from("participants").insert({
+    bill_id: billId,
+    name,
+    color_index: color,
+    sort: nextSort,
+    // carried over from saved friends so "Request in Venmo" works without retyping
+    venmo_username: handles?.venmoUsername ?? null,
+    zelle_handle: handles?.zelleHandle ?? null,
+  });
   touch(billId);
 }
 
@@ -259,7 +270,11 @@ export async function setParticipantPaid(billId: string, participantId: string, 
   const sb = getServiceSupabase();
   await sb
     .from("participants")
-    .update({ paid, paid_at: paid ? new Date().toISOString() : null })
+    .update({
+      paid,
+      paid_at: paid ? new Date().toISOString() : null,
+      paid_source: paid ? "organizer" : null,
+    })
     .eq("id", participantId)
     .eq("bill_id", billId);
   await refreshSettled(billId);
@@ -290,7 +305,19 @@ export async function saveProfile(input: {
 export async function signOut() {
   const sb = await getServerSupabase();
   await sb.auth.signOut();
+  (await cookies()).delete("pas_guest");
   revalidatePath("/profile");
+}
+
+// The landing is sign-in first; this lets someone skip it and use the app without an account.
+// We remember the choice in a cookie so they don't hit the sign-in wall again on this device.
+export async function continueAsGuest() {
+  (await cookies()).set("pas_guest", "1", {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
 }
 
 // Saved friends belong to a signed-in user (RLS keeps them to their own rows). Guests just
@@ -330,7 +357,11 @@ export async function markPaidByToken(token: string, paid: boolean) {
   const sb = getServiceSupabase();
   const { data } = await sb
     .from("participants")
-    .update({ paid, paid_at: paid ? new Date().toISOString() : null })
+    .update({
+      paid,
+      paid_at: paid ? new Date().toISOString() : null,
+      paid_source: paid ? "self" : null, // the friend said so — shown differently to the organizer
+    })
     .eq("pay_token", token)
     .select("bill_id")
     .single();
@@ -339,4 +370,32 @@ export async function markPaidByToken(token: string, paid: boolean) {
     touch(data.bill_id);
   }
   revalidatePath(`/pay/${token}`);
+}
+
+// --- the group share link (one link for the whole table) -------------------
+
+/**
+ * A friend tapped their name on the /s/<shareToken> roster. Record that the name was opened
+ * (a soft signal, never a lock — the wrong-tap case is handled socially) and hand back the
+ * path to their personal pay page. Guarded by the share token, not the organizer.
+ */
+export async function claimShare(shareToken: string, participantId: string): Promise<string> {
+  const sb = getServiceSupabase();
+  const { data: bill } = await sb.from("bills").select("id").eq("share_token", shareToken).single();
+  if (!bill) throw new Error("This link isn't working.");
+
+  const { data: p } = await sb
+    .from("participants")
+    .select("id, pay_token, claimed_at")
+    .eq("id", participantId)
+    .eq("bill_id", bill.id)
+    .single();
+  if (!p) throw new Error("That person isn't on this bill.");
+
+  if (!p.claimed_at) {
+    await sb.from("participants").update({ claimed_at: new Date().toISOString() }).eq("id", p.id);
+    revalidatePath(`/bill/${bill.id}`);
+    revalidatePath(`/s/${shareToken}`);
+  }
+  return `/pay/${p.pay_token}`;
 }

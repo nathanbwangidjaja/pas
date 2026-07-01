@@ -17,6 +17,8 @@ export interface Participant {
   rail: Rail | null;
   paid: boolean;
   paidAt: string | null;
+  paidSource: "self" | "organizer" | null;
+  claimedAt: string | null;
   payToken: string;
 }
 
@@ -51,6 +53,7 @@ export interface Bill {
   tipMode: string | null;
   taxTipSplit: SplitMode;
   receiptPath: string | null;
+  shareToken: string;
   createdAt: string;
   settledAt: string | null;
 }

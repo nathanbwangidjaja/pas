@@ -243,10 +243,10 @@ export function AssignClient({
         onClose={() => setAddingDiner(false)}
         savedFriends={savedFriends}
         existingNames={participants.map((p) => p.name.toLowerCase())}
-        onAdd={async (name) => {
+        onAdd={async (name, handles) => {
           setAddingDiner(false);
           try {
-            await addDiner(billId, name);
+            await addDiner(billId, name, handles);
           } finally {
             router.refresh();
           }
@@ -508,7 +508,7 @@ function AddDinerSheet({
 }: {
   open: boolean;
   onClose: () => void;
-  onAdd: (name: string) => void;
+  onAdd: (name: string, handles?: { venmoUsername?: string | null; zelleHandle?: string | null }) => void;
   savedFriends: SavedFriend[];
   existingNames: string[];
 }) {
@@ -526,7 +526,10 @@ function AddDinerSheet({
             {available.map((f) => (
               <button
                 key={f.id}
-                onClick={() => onAdd(f.name)}
+                onClick={() =>
+                  // bring their handles along so "Request in Venmo" works with no retyping
+                  onAdd(f.name, { venmoUsername: f.venmoUsername, zelleHandle: f.zelleHandle })
+                }
                 className="flex items-center gap-1.5 rounded-full bg-brand-soft py-1.5 pl-1.5 pr-3 text-[13px] font-medium text-brand"
               >
                 <Avatar name={f.name} colorIndex={1} size={22} />
